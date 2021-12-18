@@ -11,12 +11,12 @@ app.use(router.routes());
 app.use(router.allowedMethods());
 
 router
-  .get("/fillRankings", redbubbleControllers.fillRankings);
+    .get("/fillRankings", redbubbleControllers.fillRankings);
 
 app.addEventListener("listen", ({ secure, hostname, port }) => {
-  const protocol = secure ? "https://" : "http://";
-  const url = `${protocol}${hostname ?? "localhost"}:${port}`;
-  console.log(`Listening on: ${port}`);
+    const protocol = secure ? "https://" : "http://";
+    const url = `${protocol}${hostname ?? "localhost"}:${port}`;
+    console.log(`Listening on: ${port}`);
 });
 
 await app.listen({ port });
