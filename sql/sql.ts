@@ -5,6 +5,7 @@ const DB_NAME:string|undefined = Deno.env.get("DB_NAME");
 const DB_USERNAME:string|undefined = Deno.env.get("DB_USERNAME");
 const DB_HOST:string|undefined = Deno.env.get("DB_HOST");
 const DB_PASSWORD:string|undefined = Deno.env.get("DB_PASSWORD");
+const POOL_SIZE:number = 10;
 
 if (!DB_NAME || !DB_USERNAME || !DB_HOST || !DB_PASSWORD) {
   throw new Error("Please set up your database credentials in .env file");
@@ -12,6 +13,7 @@ if (!DB_NAME || !DB_USERNAME || !DB_HOST || !DB_PASSWORD) {
 
 const client = await new Client().connect({
   db: DB_NAME,
+  poolSize: POOL_SIZE,
   hostname: DB_HOST,
   username: DB_USERNAME,
   password: DB_PASSWORD,

@@ -1,67 +1,97 @@
 import { scrape } from "../helpers/scraper.ts";
 import client from "../sql/sql.ts";
 import { Client } from "https://raw.githubusercontent.com/denodrivers/mysql/8378027d8ba60ef901ca7ecaf001cf1a47651418/mod.ts";
-
 // @deno-types="https://denopkg.com/nekobato/deno-xml-parser/index.ts"
 import parse from "https://denopkg.com/nekobato/deno-xml-parser/index.ts";
 
-//TODO: figure out how to get the Document type from the xml parser
-function getSearchResultsByRanking(resText: string): Array<string> {
-    const node: any = parse(resText);
+const BATCH_SIZE = 10000;
 
-    return node.root.children.map((child: any) => {
-        return child.children[0].content;
+interface rankToUrl {
+    rank: number;
+    url: string;
+}
+//TODO: figure out how to get the Document type from the xml parser
+function getSearchResultsByRanking(resText: string): Array<rankToUrl> {
+    const node: any = parse(resText);
+    const rankToResultMap: Map<string, number> = new Map();
+
+    const rankToUrlPairs: Array<rankToUrl> = new Array<rankToUrl>();
+
+    // needs to be a tuple to ensure we keep order even if we slice the array for batching the inserts to the db
+    node.root.children.forEach((child: any, index: number) => {
+        if (!rankToResultMap.has(child.children[0].content)) {
+            rankToResultMap.set(child.children[0].content, index);
+            const rankToUrl: rankToUrl = {
+                rank: index,
+                url: child.children[0].content,
+            };
+            rankToUrlPairs.push(rankToUrl);
+        }
     });
+
+    return rankToUrlPairs;
 }
 
-const insertRankings = async (rankings: Array<string>): Promise<void> => {
-    const valuesString = rankings.reduce(
-        (values: string, searchTerm: string, index: number) => {
-            return values + `(${index}, "${searchTerm}")` +
-                (index === rankings.length - 1 ? "" : ", ");
-        },
-        "",
-    );
+const insertRankings = async (
+    rankToUrlPairs: Array<rankToUrl>,
+): Promise<void> => {
+    const date: string = new Date().toISOString().slice(0, 10);
 
-    const query = `INSERT INTO rankings (rank, url) VALUES ${valuesString};`;
+    let values = "";
+    for (const { rank, url } of rankToUrlPairs) {
+        values += `("${date}", ${rank}, "${url}", "${date.concat(url)}"), `;
+    }
+    values = values.slice(0, -2);
+
+    const query =
+        `INSERT INTO rankings (date, rank, url, dateAndUrl) VALUES ${values};`;
+    await Deno.writeTextFile("values", values);
 
     // throw away result
-    await client.execute(query);
+    await client.execute(query).catch(
+        (err) => {
+            console.log(values);
+            console.error(err);
+        },
+    );
 };
 
 const fillRankings = async (): Promise<void> => {
-    const res: Response = await scrape(
+    const res: string = await scrape(
         "https://www.redbubble.com/sitemap/popular_searches_en_00000.xml",
     );
-    const resXML: string = JSON.parse(await res.text()).content;
-    const searchResults: Array<string> = getSearchResultsByRanking(resXML);
+    const rankToUrlPairs: Array<rankToUrl> = getSearchResultsByRanking(res);
 
-    insertRankings(searchResults);
-};
+    const batches: Array<rankToUrl[]> = [];
+    for (
+        let i = 0;
+        i < rankToUrlPairs.length;
+        i += Math.min(rankToUrlPairs.length - 1, BATCH_SIZE)
+    ) {
+        const batch = rankToUrlPairs.slice(
+            i,
+            i + Math.min(rankToUrlPairs.length - 1, BATCH_SIZE),
+        );
+        batches.push(batch);
+    }
 
-// TODO: either use nonce from client that increments or make primary key the curdate+url
-const insertResults = async (
-    urlAndResultPairs: Array<UrlAndResult>,
-): Promise<void> => {
-    const valuesString = urlAndResultPairs.reduce(
-        (values: string, UrlAndResult: UrlAndResult, index: number) => {
-            return values + `("${UrlAndResult.url}", ${UrlAndResult.result})` +
-                (index === urlAndResultPairs.length - 1 ? "" : ", ");
-        },
-    );
+    const insertRankingsBatches: Promise<void>[] = batches.map((batch) => {
+        return insertRankings(batch);
+    });
 
-    // update rankings table with result number where url = url and date = current date
-    const query =
-        `INSERT into rankings (CURDATE(), url, result) values (${valuesString}) ON DUPLICATE KEY UPDATE ;`;
-
-    // throw away result
-    await client.execute(query);
+    Promise.all(insertRankingsBatches).catch((err: Error) => {
+        console.log(err);
+    });
 };
 
 const getUrlsWithinRange = async (
     startRank: number,
     stopRank: number,
 ): Promise<Array<string>> => {
+    if (startRank > stopRank) {
+        throw Error("startRank must be less than or equal to stopRank");
+    }
+
     const query =
         `SELECT url FROM rankings WHERE rank >= ${startRank} AND rank <= ${stopRank}`;
     const urls: Array<object> = await client.query(query);
@@ -72,6 +102,8 @@ const getUrlsWithinRange = async (
     return urlStrings;
 };
 
+// get results number from print on demand website
+// this is specific to redbubble currently
 const extractResultNumber = (html: string): number => {
     const resultsRegex = /([0-9,]*) Results<\/span><\/div>/;
 
@@ -91,36 +123,44 @@ interface UrlAndResult {
     result: number;
 }
 
-const fillResult = async (
+const updateResult = (
+    { url, result }: UrlAndResult,
+): void => {
+    const date: string = new Date().toISOString().slice(0, 10);
+    const query =
+        `UPDATE rankings SET results = ${result} WHERE dateAndUrl = "${
+            date.concat(url)
+        }";`;
+
+    // throw away result
+    client.execute(query);
+};
+
+const fillResults = async (
     startRank: number,
     stopRank: number,
 ): Promise<void> => {
     const urls: Array<string> = await getUrlsWithinRange(startRank, stopRank);
+    const t0 = performance.now();
 
-    const urlRequests: Promise<UrlAndResult>[] = urls.map(
+    const scrapeAndUpdateResultRequests: Promise<void>[] = urls.map(
         async (url: string) => {
-            const res: Response = await scrape(url);
-            const resText: string = await res.text();
-            const html: string = JSON.parse(resText)["content"];
-            const result: number = extractResultNumber(html);
+            const res: string = await scrape(url);
 
-            const urlAndResult: UrlAndResult = {
-                url,
-                result,
-            };
-            return urlAndResult;
+            const result: number = extractResultNumber(res);
+            updateResult({ url, result });
         },
     );
+    await Promise.all(scrapeAndUpdateResultRequests);
 
-    const urlAndResultPairs = await Promise.all(urlRequests);
-    //TODO: get the result number from the HTML results and insert it into the database
-
-    insertResults(urlAndResultPairs);
+    const t1 = performance.now();
+    console.log(`start to end took ${t1 - t0} milliseconds.`);
 };
 
-//TODO: remove
-fillResult(0, 1);
+// fillRankings();
+fillResults(91, 121);
 
 export default {
+    fillResults,
     fillRankings,
 };
