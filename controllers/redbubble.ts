@@ -50,7 +50,6 @@ const insertRankings = async (
     // throw away result
     await client.execute(query).catch(
         (err) => {
-            console.log(values);
             console.error(err);
         },
     );
@@ -141,7 +140,6 @@ const fillResults = async (
     stopRank: number,
 ): Promise<void> => {
     const urls: Array<string> = await getUrlsWithinRange(startRank, stopRank);
-    const t0 = performance.now();
 
     const scrapeAndUpdateResultRequests: Promise<void>[] = urls.map(
         async (url: string) => {
@@ -152,13 +150,7 @@ const fillResults = async (
         },
     );
     await Promise.all(scrapeAndUpdateResultRequests);
-
-    const t1 = performance.now();
-    console.log(`start to end took ${t1 - t0} milliseconds.`);
 };
-
-// fillRankings();
-fillResults(91, 121);
 
 export default {
     fillResults,
