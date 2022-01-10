@@ -1,7 +1,5 @@
 import { scrape } from "../helpers/scraper.ts";
 import client from "../sql/sql.ts";
-import { Client } from "https://raw.githubusercontent.com/denodrivers/mysql/8378027d8ba60ef901ca7ecaf001cf1a47651418/mod.ts";
-// @deno-types="https://denopkg.com/nekobato/deno-xml-parser/index.ts"
 
 const BATCH_SIZE = 10000;
 
@@ -81,7 +79,7 @@ const fillRankings = async (): Promise<void> => {
         return insertRankings(batch);
     });
 
-    Promise.all(insertRankingsBatches).catch((err: Error) => {
+    await Promise.all(insertRankingsBatches).catch((err: Error) => {
         console.log(err);
     });
 };
@@ -106,14 +104,14 @@ const getUrlsWithinRange = async (
 
 // get results number from print on demand website
 // this is specific to redbubble currently
-const extractResultNumber = (html: string): number => {
+const extractResultNumber = (html: string): number | null => {
     const resultsRegex = /([0-9,]*) Results<\/span><\/div>/;
 
     // Example: 164,295 "Results</span></div>"
     const found = html.match(resultsRegex);
 
     if (!found || found.length < 2) {
-        throw new Error("Could not find result number");
+        return null;
     }
     const foundNumber = parseInt(found[1].replace(",", ""));
 
@@ -146,10 +144,22 @@ const fillResults = async (
 
     const scrapeAndUpdateResultRequests: Promise<void>[] = urls.map(
         async (url: string) => {
-            const res: string = await scrape(url);
+            let result: number | null = null;
 
-            const result: number = extractResultNumber(res);
-            updateResult({ url, result });
+            for (let i = 0; i < 3; i++) {
+                result = extractResultNumber(await scrape(url));
+                if (result !== null) {
+                    break;
+                }
+            }
+
+            if (result === null) {
+                throw Error(
+                    "result extraction failed, scrape likely failed 3 times in a row",
+                );
+            }
+
+            return updateResult({ url, result });
         },
     );
     await Promise.all(scrapeAndUpdateResultRequests);

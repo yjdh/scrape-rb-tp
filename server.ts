@@ -20,7 +20,7 @@ router
 
         if (!params.start || !params.stop) {
             ctx.response.status = 400;
-            ctx.response.body = "start and end params are required";
+            ctx.response.body = "start and stop params are required";
             return;
         }
 
