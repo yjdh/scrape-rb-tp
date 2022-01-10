@@ -5,6 +5,7 @@ CREATE TABLE rankings (
   rank INT,
   url VARCHAR(512) collate utf8_bin,
   results INT DEFAULT 0,
+  resultsTP INT DEFAULT 0,
   dateAndUrl varchar(512) collate utf8_bin,
   PRIMARY KEY (dateAndUrl)
 )

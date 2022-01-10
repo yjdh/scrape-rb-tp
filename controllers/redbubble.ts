@@ -2,7 +2,6 @@ import { scrape } from "../helpers/scraper.ts";
 import client from "../sql/sql.ts";
 import { Client } from "https://raw.githubusercontent.com/denodrivers/mysql/8378027d8ba60ef901ca7ecaf001cf1a47651418/mod.ts";
 // @deno-types="https://denopkg.com/nekobato/deno-xml-parser/index.ts"
-import parse from "https://denopkg.com/nekobato/deno-xml-parser/index.ts";
 
 const BATCH_SIZE = 10000;
 
@@ -10,20 +9,24 @@ interface rankToUrl {
     rank: number;
     url: string;
 }
-//TODO: figure out how to get the Document type from the xml parser
+
 function getSearchResultsByRanking(resText: string): Array<rankToUrl> {
-    const node: any = parse(resText);
+    const resultsRegex = /<loc>(.*?)\<\/loc>/g;
+    const found = resText.match(resultsRegex);
+
+    if (!found) {
+        throw new Error("Sitemap rankings not found");
+    }
     const rankToResultMap: Map<string, number> = new Map();
 
-    const rankToUrlPairs: Array<rankToUrl> = new Array<rankToUrl>();
+    const rankToUrlPairs: rankToUrl[] = new Array<rankToUrl>();
 
-    // needs to be a tuple to ensure we keep order even if we slice the array for batching the inserts to the db
-    node.root.children.forEach((child: any, index: number) => {
-        if (!rankToResultMap.has(child.children[0].content)) {
-            rankToResultMap.set(child.children[0].content, index);
+    found.forEach((url: string, index: number) => {
+        if (!rankToResultMap.has(url)) {
+            rankToResultMap.set(url, index);
             const rankToUrl: rankToUrl = {
                 rank: index,
-                url: child.children[0].content,
+                url: url.slice(5, url.length - 6),
             };
             rankToUrlPairs.push(rankToUrl);
         }
@@ -45,11 +48,11 @@ const insertRankings = async (
 
     const query =
         `INSERT INTO rankings (date, rank, url, dateAndUrl) VALUES ${values};`;
-    await Deno.writeTextFile("values", values);
 
     // throw away result
     await client.execute(query).catch(
         (err) => {
+            console.error(values);
             console.error(err);
         },
     );

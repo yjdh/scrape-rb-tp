@@ -1,6 +1,5 @@
 import "https://deno.land/x/dotenv/load.ts";
 import { encodeUrl } from "https://deno.land/x/encodeurl/mod.ts";
-import { exchange } from "https://raw.githubusercontent.com/chibat/rest_client_with_proxy/master/rest_client.ts";
 
 const SCRAPING_BEE_KEY = <string> Deno.env.get("SCRAPING_BEE_KEY");
 const SCRAPER_API_KEY = <string> Deno.env.get("SCRAPER_API_KEY");
