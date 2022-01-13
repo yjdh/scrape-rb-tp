@@ -1,0 +1,37 @@
+{
+  "name": "scrape-rb-tp",
+  "version": "1.0.0",
+  "description": "TODO:",
+  "main": "server.ts",
+  "scripts": {
+    "start": "npx tsc; node dist/server.js",
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/yjdh/scrape-rb-tp.git"
+  },
+  "author": "",
+  "license": "ISC",
+  "bugs": {
+    "url": "https://github.com/yjdh/scrape-rb-tp/issues"
+  },
+  "homepage": "https://github.com/yjdh/scrape-rb-tp#readme",
+  "devDependencies": {
+    "@types/express": "^4.17.1",
+    "@types/mysql": "^2.15.20",
+    "@types/mysql2": "github:types/mysql2",
+    "@types/node-fetch": "^2.5.12",
+    "@typescript-eslint/eslint-plugin": "^5.9.1",
+    "@typescript-eslint/parser": "^5.9.1",
+    "eslint": "^8.6.0",
+    "eslint-config-google": "^0.14.0",
+    "typescript": "^4.5.4"
+  },
+  "dependencies": {
+    "dotenv": "^11.0.0",
+    "express": "^4.17.2",
+    "mysql2": "^2.3.3",
+    "node-fetch": "^2.6.6"
+  }
+}

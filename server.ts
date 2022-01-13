@@ -1,48 +1,43 @@
-import { Application, helpers, Router } from "https://deno.land/x/oak/mod.ts";
-import redbubbleControllers from "./controllers/redbubble.ts";
+import express from 'express';
+import redbubbleControllers from './controllers/redbubble';
 
 const port = 8080;
+const app = express();
 
-const app = new Application();
-
-const router = new Router();
-
-router
-    .get("/fillRankings", async (ctx) => {
-        await redbubbleControllers.fillRankings();
-        ctx.response.status = 200;
-        ctx.response.body = "Rankings filled";
-    })
-    .get("/fillResults", async (ctx) => {
-        const params: Record<string, string> = helpers.getQuery(ctx, {
-            mergeParams: true,
-        });
-
-        if (!params.start || !params.stop) {
-            ctx.response.status = 400;
-            ctx.response.body = "start and stop params are required";
-            return;
-        }
-
-        const start = parseInt(params.start);
-        const stop = parseInt(params.stop);
-
-        await redbubbleControllers.fillResults(start, stop);
-        ctx.response.status = 200;
-        ctx.response.body = `Result ${start} to ${stop} filled`;
-    })
-    .get("/(.*)", async (ctx) => {
-        ctx.response.status = 404;
-        ctx.response.body = "404 | Page not Found";
-    });
-
-app.use(router.routes());
-app.use(router.allowedMethods());
-
-app.addEventListener("listen", ({ secure, hostname, port }) => {
-    const protocol = secure ? "https://" : "http://";
-    const url = `${protocol}${hostname ?? "localhost"}:${port}`;
-    console.log(`Listening on: ${port}`);
+app.get('/fillRankings', async (req, res) => {
+  await redbubbleControllers.fillRankings();
+  res.status(200);
+  res.type('txt').send('Rankings filled');
 });
 
-await app.listen({ port });
+app.get('/fillResults', async (req, res) => {
+  if (
+    !req.query.start || !(typeof req.query.start === 'string') ||
+        !req.query.stop || !(typeof req.query.stop === 'string')
+  ) {
+    res.status(400);
+    res.type('txt').send('start and stop params are required');
+    return;
+  }
+
+  const start = parseInt(req.query.start);
+  const stop = parseInt(req.query.stop);
+
+  await redbubbleControllers.fillResults(start, stop);
+  res.status(200);
+  res.type('txt').send(`Result ${start} to ${stop} filled`);
+});
+
+app.get('/', async (req, res) => {
+  res.status(200);
+  res.type('txt').send('API running');
+});
+
+app.get('*', function(req, res) {
+  res.status(404);
+  res.send('404 not found');
+});
+
+app.listen(port, () => {
+  return console.log(`Express is listening at http://localhost:${port}`);
+});
