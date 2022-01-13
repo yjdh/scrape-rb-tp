@@ -8,3 +8,9 @@ read off the table in order for a certain date index
 
 then
 
+---
+# Install:
+npm install
+
+# Run:
+npm start

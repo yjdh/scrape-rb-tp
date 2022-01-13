@@ -1,25 +1,26 @@
-import { Client } from "https://raw.githubusercontent.com/denodrivers/mysql/8378027d8ba60ef901ca7ecaf001cf1a47651418/mod.ts";
-import "https://deno.land/x/dotenv/load.ts";
+import mysql from 'mysql2/promise';
+import dotenv from 'dotenv';
+dotenv.config();
 
-const DB_NAME:string|undefined = Deno.env.get("DB_NAME");
-const DB_USERNAME:string|undefined = Deno.env.get("DB_USERNAME");
-const DB_HOST:string|undefined = Deno.env.get("DB_HOST");
-const DB_PASSWORD:string|undefined = Deno.env.get("DB_PASSWORD");
+const DB_NAME:string|undefined = process.env.DB_NAME;
+const DB_USERNAME:string|undefined = process.env.DB_USERNAME;
+const DB_HOST:string|undefined = process.env.DB_HOST;
+const DB_PASSWORD:string|undefined = process.env.DB_PASSWORD;
 const POOL_SIZE:number = 10;
 
 if (!DB_NAME || !DB_USERNAME || !DB_HOST || !DB_PASSWORD) {
-  throw new Error("Please set up your database credentials in .env file");
+  throw new Error('Please set up your database credentials in .env file');
 }
 
-const client = await new Client().connect({
-  db: DB_NAME,
-  poolSize: POOL_SIZE,
-  hostname: DB_HOST,
-  username: DB_USERNAME,
+const pool = mysql.createPool({
+  connectionLimit: POOL_SIZE,
+  database: DB_NAME,
+  host: DB_HOST,
+  user: DB_USERNAME,
   password: DB_PASSWORD,
-  tls: {
-    enabled: true,
+  ssl: {
+    rejectUnauthorized: true,
   },
 });
 
-export default client;
+export default pool;
